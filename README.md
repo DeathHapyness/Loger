@@ -1,6 +1,6 @@
 # Loger
 
-Auditoria leve para servidores Linux. É um binário estático de ~1,2 MB, usa ~3 MB de RAM e não depende de nada instalado no servidor: não precisa de auditd, eBPF, Python nem de bibliotecas do sistema.
+Auditoria leve para servidores Linux. É um binário estático, escrito em Go, que não depende de nada instalado no servidor: não precisa de auditd, eBPF, Python nem de bibliotecas do sistema.
 
 ## O que registra
 
@@ -22,17 +22,15 @@ Níveis: `info`, `notice`, `warn`, `alert`.
 ## Compilar
 
 ```sh
-rustup target add x86_64-unknown-linux-musl          # uma vez
-cargo build --release --target x86_64-unknown-linux-musl
-# binário: target/x86_64-unknown-linux-musl/release/loger
+CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o loger .
 ```
 
-Para ARM (Raspberry Pi, servidores Graviton), use o target `aarch64-unknown-linux-musl`.
+Para ARM (Raspberry Pi, servidores Graviton), acrescente `GOARCH=arm64` antes do comando.
 
 ## Instalar
 
 ```sh
-sudo cp target/x86_64-unknown-linux-musl/release/loger /usr/local/bin/
+sudo cp loger /usr/local/bin/
 sudo mkdir -p /etc/loger && loger config | sudo tee /etc/loger/loger.toml   # opcional
 sudo cp dist/loger.service /etc/systemd/system/
 sudo systemctl enable --now loger
