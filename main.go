@@ -3,6 +3,10 @@ package main
 import (
 	"fmt"
 	"os"
+
+	"github.com/DeathHapyness/loger/internal/config"
+	"github.com/DeathHapyness/loger/internal/show"
+	"github.com/DeathHapyness/loger/internal/store"
 )
 
 var version = "0.2.0"
@@ -39,12 +43,54 @@ func die(format string, a ...any) {
 	os.Exit(2)
 }
 
+func opt(args []string, short, long string) (string, bool) {
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] == short || args[i] == long {
+			return args[i+1], true
+		}
+	}
+	return "", false
+}
+
+func loadConfig(args []string) *config.Config {
+	path, explicit := opt(args, "-c", "--config")
+	if !explicit {
+		path = config.DefaultPath
+	}
+	c, err := config.Load(path, explicit)
+	if err != nil {
+		die("%v", err)
+	}
+	return c
+}
+
+func logDir(args []string, c *config.Config) string {
+	if d, ok := opt(args, "-d", "--dir"); ok {
+		return d
+	}
+	return c.Log.Dir
+}
+
 func main() {
 	cmd := "help"
+	var rest []string
 	if len(os.Args) > 1 {
-		cmd = os.Args[1]
+		cmd, rest = os.Args[1], os.Args[2:]
 	}
 	switch cmd {
+	case "show":
+		dir := logDir(rest, loadConfig(rest))
+		f, err := show.Parse(rest)
+		if err != nil {
+			die("%v", err)
+		}
+		if err := show.Show(dir, f); err != nil {
+			die("%v", err)
+		}
+	case "verify":
+		verify(rest)
+	case "config":
+		fmt.Print(config.Sample)
 	case "version", "--version", "-V":
 		fmt.Println("loger", version)
 	case "help", "--help", "-h":
@@ -52,4 +98,30 @@ func main() {
 	default:
 		die("comando desconhecido: %s (veja `loger help`)", cmd)
 	}
+}
+
+func verify(args []string) {
+	dir := logDir(args, loadConfig(args))
+	rep, err := store.Verify(dir)
+	if err != nil {
+		die("%v (rode como root?)", err)
+	}
+	fmt.Printf("%d registros conferidos em %s\n", rep.Records, dir)
+	if rep.HasFirst && rep.FirstSeq > 0 {
+		if rep.RotatedFiles == 0 {
+			rep.Problems = append([]string{fmt.Sprintf(
+				"os registros 0 a %d não existem e não houve rotação: o log foi apagado ou truncado", rep.FirstSeq-1)}, rep.Problems...)
+		} else {
+			fmt.Printf("obs: o registro mais antigo é o seq %d (os anteriores podem ter saído pela rotação)\n", rep.FirstSeq)
+		}
+	}
+	if len(rep.Problems) == 0 {
+		fmt.Println("OK: nenhum registro alterado, removido ou inserido.")
+		return
+	}
+	fmt.Printf("PROBLEMAS ENCONTRADOS (%d):\n", len(rep.Problems))
+	for _, p := range rep.Problems {
+		fmt.Println("  -", p)
+	}
+	os.Exit(1)
 }
