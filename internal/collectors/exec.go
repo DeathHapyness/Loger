@@ -443,14 +443,12 @@ func (t *tracker) housekeeping() {
 }
 
 // setuidRoot diz se o executável atual do processo é setuid root. No exec de um binário
-// setuid o kernel avisa a troca de uid antes do próprio exec, então lê o exe direto de /proc.
+// setuid o kernel avisa a troca de uid antes do próprio exec, então olha o exe atual em /proc.
+// O stat em /proc/<pid>/exe segue o link do kernel e funciona até de dentro de um container,
+// onde o caminho do binário do host não existe.
 func setuidRoot(pid int, knownExe string) bool {
-	exe, _ := procfs.Exe(pid)
-	if exe == "" {
-		exe = knownExe
-	}
 	var st unix.Stat_t
-	if unix.Stat(exe, &st) != nil {
+	if unix.Stat(fmt.Sprintf("/proc/%d/exe", pid), &st) != nil && unix.Stat(knownExe, &st) != nil {
 		return false
 	}
 	return st.Uid == 0 && st.Mode&unix.S_ISUID != 0
