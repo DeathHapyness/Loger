@@ -12,7 +12,7 @@ func keys(socks []Sock) []string {
 	var out []string
 	for _, s := range socks {
 		if s.Proto == "tcp" && s.State == Listen || s.Proto == "udp" {
-			out = append(out, fmt.Sprintf("%s/%s:%d>%s:%d %d", s.Proto, s.Local, s.LocalPort, s.Remote, s.RemotePort, s.Inode))
+			out = append(out, fmt.Sprintf("%s/%s:%d>%s:%d %d %d", s.Proto, s.Local, s.LocalPort, s.Remote, s.RemotePort, s.UID, s.Inode))
 		}
 	}
 	sort.Strings(out)
@@ -41,6 +41,11 @@ func TestDiagMatchesProc(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("porta de teste não encontrada")
+	}
+	for _, s := range diag {
+		if s.LocalPort == port && s.UID != uint32(os.Getuid()) {
+			t.Fatalf("uid do socket = %d", s.UID)
+		}
 	}
 }
 

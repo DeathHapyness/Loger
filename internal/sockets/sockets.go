@@ -27,6 +27,7 @@ type Sock struct {
 	Remote     string
 	RemotePort uint16
 	State      uint8
+	UID        uint32
 	Inode      uint64
 }
 
@@ -174,6 +175,7 @@ func parseDiag(d []byte, proto string) Sock {
 		RemotePort: binary.BigEndian.Uint16(d[6:]),
 		Local:      addrString(ip(8)),
 		Remote:     addrString(ip(24)),
+		UID:        binary.NativeEndian.Uint32(d[64:]),
 		Inode:      uint64(binary.NativeEndian.Uint32(d[68:])),
 	}
 }
@@ -236,8 +238,9 @@ func readProc(k Kind) []Sock {
 			if f.proto == "tcp" && !(state == Established && k.Established) && !(state == Listen && k.Listen) {
 				continue
 			}
+			uid, _ := strconv.ParseUint(fs[7], 10, 32)
 			ino, _ := strconv.ParseUint(fs[9], 10, 64)
-			out = append(out, Sock{f.proto, local, lp, remote, rp, uint8(state), ino})
+			out = append(out, Sock{f.proto, local, lp, remote, rp, uint8(state), uint32(uid), ino})
 		}
 	}
 	return out
