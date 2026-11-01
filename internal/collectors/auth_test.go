@@ -106,3 +106,27 @@ func TestTailFollowsRotation(t *testing.T) {
 		t.Fatalf("linha escrita em duas partes: %s", ev.User)
 	}
 }
+
+// Truncar e logo escrever uma linha do mesmo tamanho deixa o arquivo do mesmo tamanho
+// que a posição de leitura; só o conteúdo denuncia a troca.
+func TestTailTruncateSameSize(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "auth.log")
+	line := func(u string) string {
+		return "Oct  4 12:00:01 srv sshd[1]: Accepted password for " + u + " from 1.1.1.1 port 1 ssh2\n"
+	}
+	os.WriteFile(path, nil, 0o600)
+	ctx, ch := testCtx(nil)
+	go tailFile(path, newAuthParser(ctx))
+	time.Sleep(200 * time.Millisecond)
+	f, _ := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o600)
+	f.WriteString(line("aaaa"))
+	f.Close()
+	waitFor(t, ch, "ssh.auth_ok")
+	for i, u := range []string{"bbbb", "cccc", "dddd"} {
+		os.WriteFile(path, []byte(line(u)), 0o600)
+		if ev := waitFor(t, ch, "ssh.auth_ok"); ev.User != u {
+			t.Fatalf("rodada %d: leu %q", i, ev.User)
+		}
+	}
+}

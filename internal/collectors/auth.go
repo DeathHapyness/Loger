@@ -201,13 +201,17 @@ func tailFile(path string, p *authParser) {
 	var ino uint64
 	var r *bufio.Reader
 	var partial []byte
+	var last []byte
 	first := true
 	for {
 		if f == nil {
 			if nf, err := os.Open(path); err == nil {
 				f, ino = nf, inodeOf(nf)
+				last = nil
 				if first {
-					f.Seek(0, io.SeekEnd)
+					end, _ := f.Seek(0, io.SeekEnd)
+					last = make([]byte, min(end, tailCheck))
+					f.ReadAt(last, end-int64(len(last)))
 				}
 				r = bufio.NewReaderSize(f, 64*1024)
 				partial = nil
@@ -218,6 +222,10 @@ func tailFile(path string, p *authParser) {
 		got := false
 		for f != nil {
 			chunk, err := r.ReadBytes('\n')
+			last = append(last, chunk...)
+			if len(last) > tailCheck {
+				last = append(last[:0], last[len(last)-tailCheck:]...)
+			}
 			if err != nil {
 				partial = append(partial, chunk...)
 				break
@@ -231,16 +239,33 @@ func tailFile(path string, p *authParser) {
 			continue
 		}
 		w.Wait(5 * time.Second)
-		if f != nil {
-			pos, _ := f.Seek(0, io.SeekCurrent)
-			pos -= int64(r.Buffered())
-			st, err := os.Stat(path)
-			if err != nil || inodeStat(st) != ino || st.Size() < pos {
-				f.Close()
-				f = nil
-			}
+		if f != nil && rewritten(f, r, path, ino, last) {
+			f.Close()
+			f = nil
 		}
 	}
+}
+
+const tailCheck = 64
+
+// rewritten diz se o arquivo foi trocado, apagado ou truncado. Um truncamento seguido de
+// escrita pode deixar o arquivo maior que a posição de leitura, então também confere se os
+// últimos bytes lidos continuam no mesmo lugar.
+func rewritten(f *os.File, r *bufio.Reader, path string, ino uint64, last []byte) bool {
+	pos, _ := f.Seek(0, io.SeekCurrent)
+	pos -= int64(r.Buffered())
+	st, err := os.Stat(path)
+	if err != nil || inodeStat(st) != ino || st.Size() < pos {
+		return true
+	}
+	if len(last) == 0 || int64(len(last)) > pos {
+		return false
+	}
+	b := make([]byte, len(last))
+	if _, err := f.ReadAt(b, pos-int64(len(b))); err != nil {
+		return true
+	}
+	return !bytes.Equal(b, last)
 }
 
 func runJournal(p *authParser) bool {
