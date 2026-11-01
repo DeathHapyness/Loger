@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/DeathHapyness/loger/internal/config"
+	"github.com/DeathHapyness/loger/internal/daemon"
 	"github.com/DeathHapyness/loger/internal/show"
 	"github.com/DeathHapyness/loger/internal/store"
 )
@@ -78,6 +79,15 @@ func main() {
 		cmd, rest = os.Args[1], os.Args[2:]
 	}
 	switch cmd {
+	case "daemon":
+		path, explicit := opt(rest, "-c", "--config")
+		if !explicit {
+			path = config.DefaultPath
+		}
+		opts := daemon.Options{ConfigPath: path, Explicit: explicit, Version: version}
+		if err := daemon.Run(loadConfig(rest), opts); err != nil {
+			die("%v", err)
+		}
 	case "show":
 		dir := logDir(rest, loadConfig(rest))
 		f, err := show.Parse(rest)

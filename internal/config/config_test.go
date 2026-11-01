@@ -27,3 +27,14 @@ func TestUnknownField(t *testing.T) {
 		t.Fatal("campo desconhecido aceito")
 	}
 }
+
+func TestErrorMessages(t *testing.T) {
+	_, err := Parse([]byte("[log]\nkeep = 1\nkep = 3\n"))
+	if err == nil || err.Error() != "campo desconhecido: log.kep (linha 3)" {
+		t.Fatalf("%v", err)
+	}
+	_, err = Parse([]byte("[log]\nkeep = \"x\"\n"))
+	if err == nil || err.Error()[:7] != "linha 2" {
+		t.Fatalf("%v", err)
+	}
+}

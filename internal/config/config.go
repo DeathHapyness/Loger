@@ -2,8 +2,10 @@ package config
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/pelletier/go-toml/v2"
 )
@@ -129,11 +131,19 @@ func Parse(text []byte) (*Config, error) {
 	dec := toml.NewDecoder(bytes.NewReader(text))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(c); err != nil {
-		if sm, ok := err.(*toml.StrictMissingError); ok {
-			return nil, fmt.Errorf("%s", sm.String())
-		}
-		if de, ok := err.(*toml.DecodeError); ok {
-			return nil, fmt.Errorf("%s", de.String())
+		var sm *toml.StrictMissingError
+		var de *toml.DecodeError
+		switch {
+		case errors.As(err, &sm):
+			var keys []string
+			for _, e := range sm.Errors {
+				row, _ := e.Position()
+				keys = append(keys, fmt.Sprintf("%s (linha %d)", strings.Join(e.Key(), "."), row))
+			}
+			return nil, fmt.Errorf("campo desconhecido: %s", strings.Join(keys, ", "))
+		case errors.As(err, &de):
+			row, _ := de.Position()
+			return nil, fmt.Errorf("linha %d: %v", row, de)
 		}
 		return nil, err
 	}
