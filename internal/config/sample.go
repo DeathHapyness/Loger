@@ -16,6 +16,23 @@ ignore_exe = []            # binários a ignorar, ex: ["/usr/bin/sleep"]
 max_args_len = 4096
 poll_interval_ms = 500     # usado só se o kernel não aceitar o proc connector
 
+# Regras para ignorar comandos (e as conexões de rede deles). Numa regra, todos os campos
+# preenchidos precisam casar; basta uma regra casar para ignorar.
+#   exe, parent  binário do processo e do pai; * não passa de uma pasta para outra
+#   user         usuário do evento (quem fez login)
+#   argv         linha de comando inteira; * casa qualquer coisa, inclusive espaços
+#
+# [[exec.ignore]]
+# exe = "/usr/lib/*/zabbix_agentd"
+#
+# [[exec.ignore]]
+# user = "backup"
+# exe = "/usr/bin/rsync"
+#
+# [[exec.ignore]]
+# parent = "/usr/sbin/cron"
+# argv = "*--healthcheck*"
+
 [auth]
 enabled = true
 files = ["/var/log/auth.log", "/var/log/secure"]   # sem nenhum deles: journalctl, depois /var/log/btmp

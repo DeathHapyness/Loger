@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
@@ -31,11 +32,21 @@ type LogCfg struct {
 }
 
 type ExecCfg struct {
-	Enabled        bool     `toml:"enabled"`
-	OnlySessions   bool     `toml:"only_sessions"`
-	IgnoreExe      []string `toml:"ignore_exe"`
-	MaxArgsLen     int      `toml:"max_args_len"`
-	PollIntervalMs int      `toml:"poll_interval_ms"`
+	Enabled        bool         `toml:"enabled"`
+	OnlySessions   bool         `toml:"only_sessions"`
+	IgnoreExe      []string     `toml:"ignore_exe"`
+	Ignore         []IgnoreRule `toml:"ignore"`
+	MaxArgsLen     int          `toml:"max_args_len"`
+	PollIntervalMs int          `toml:"poll_interval_ms"`
+}
+
+// IgnoreRule descarta comandos (e as conexões de rede deles). Todos os campos preenchidos
+// precisam casar; basta uma regra casar para o evento ser ignorado.
+type IgnoreRule struct {
+	Exe    string `toml:"exe"`
+	User   string `toml:"user"`
+	Parent string `toml:"parent"`
+	Argv   string `toml:"argv"`
 }
 
 type AuthCfg struct {
@@ -147,7 +158,24 @@ func Parse(text []byte) (*Config, error) {
 		}
 		return nil, err
 	}
+	if err := c.validate(); err != nil {
+		return nil, err
+	}
 	return c, nil
+}
+
+func (c *Config) validate() error {
+	for i, r := range c.Exec.Ignore {
+		if r == (IgnoreRule{}) {
+			return fmt.Errorf("exec.ignore[%d]: regra vazia ignoraria todos os comandos", i)
+		}
+		for name, pat := range map[string]string{"exe": r.Exe, "user": r.User, "parent": r.Parent} {
+			if _, err := path.Match(pat, ""); err != nil {
+				return fmt.Errorf("exec.ignore[%d].%s: padrão inválido %q", i, name, pat)
+			}
+		}
+	}
+	return nil
 }
 
 // Load carrega o arquivo. Se explicit for falso e o arquivo não existir, usa os padrões.
