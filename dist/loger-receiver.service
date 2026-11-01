@@ -1,0 +1,12 @@
+[Unit]
+Description=Loger - receptor de logs remotos
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/loger receive
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
