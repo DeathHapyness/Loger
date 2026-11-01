@@ -15,6 +15,7 @@ import (
 	"github.com/DeathHapyness/loger/internal/collectors"
 	"github.com/DeathHapyness/loger/internal/config"
 	"github.com/DeathHapyness/loger/internal/event"
+	"github.com/DeathHapyness/loger/internal/remote"
 	"github.com/DeathHapyness/loger/internal/store"
 	"github.com/DeathHapyness/loger/internal/util"
 	"golang.org/x/sys/unix"
@@ -109,9 +110,27 @@ func Run(cfg0 *config.Config, opts Options) error {
 	cfg.Store(cfg0)
 	events := make(chan event.Ev, 8192)
 
+	var remoteLines chan []byte
+	senderDone := make(chan struct{})
+	if cfg0.Remote.Enabled {
+		remoteLines = make(chan []byte, 4096)
+		go func() {
+			remote.Sender(cfg0.Remote, remoteLines, events)
+			close(senderDone)
+		}()
+	}
+
 	write := func(ev event.Ev) {
-		if _, err := st.Append(ev); err != nil {
+		line, err := st.Append(ev)
+		if err != nil {
 			fmt.Fprintln(os.Stderr, "loger: falha ao gravar:", err)
+			return
+		}
+		if remoteLines != nil {
+			select {
+			case remoteLines <- line:
+			default:
+			}
 		}
 	}
 	for _, ev := range startEvents(st, cfg0, opts.Version) {
@@ -147,7 +166,16 @@ func Run(cfg0 *config.Config, opts Options) error {
 				name = "SIGTERM"
 			}
 			write(event.New("loger.stop", event.Warn, fmt.Sprintf("Loger parado (%s)", name)))
-			return st.Log.Close()
+			err := st.Log.Close()
+			// Dá um instante para o envio remoto mandar os últimos eventos.
+			if remoteLines != nil {
+				close(remoteLines)
+				select {
+				case <-senderDone:
+				case <-time.After(2 * time.Second):
+				}
+			}
+			return err
 		}
 	}
 }
