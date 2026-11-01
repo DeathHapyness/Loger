@@ -1,0 +1,54 @@
+services:
+  loger:
+    build: .
+    image: ghcr.io/deathhapyness/loger:latest
+    container_name: loger
+    restart: unless-stopped
+    command: ["daemon"]
+    environment:
+      LOGER_ROOT: /host
+    # Precisa ver os processos, sockets e o hostname do host, não os do container.
+    pid: host
+    network_mode: host
+    uts: host
+    cap_drop: [ALL]
+    cap_add:
+      - SYS_CHROOT       # entrar na raiz do host
+      - DAC_READ_SEARCH  # ler /etc/shadow, /root, journal
+      - SYS_PTRACE       # ler /proc/<pid> de qualquer processo
+      - NET_ADMIN        # proc connector (exec em tempo real)
+      - LINUX_IMMUTABLE  # chattr +a nos logs
+    security_opt:
+      # O perfil docker-default bloqueia ler /proc/<pid> de processos fora do container.
+      - apparmor:unconfined
+      - label:disable
+    volumes:
+      - type: bind
+        source: /
+        target: /host
+        read_only: true
+        bind:
+          propagation: rslave
+      - type: bind
+        source: /var/log/loger
+        target: /host/var/log/loger
+        bind:
+          create_host_path: true
+    stop_grace_period: 10s
+
+  # Opcional: recebe os logs de outros servidores. Suba com: docker compose --profile receiver up -d
+  loger-receiver:
+    build: .
+    image: ghcr.io/deathhapyness/loger:latest
+    container_name: loger-receiver
+    restart: unless-stopped
+    profiles: [receiver]
+    command: ["receive"]
+    cap_drop: [ALL]
+    cap_add: [LINUX_IMMUTABLE]
+    ports:
+      - "6514:6514"
+    volumes:
+      - /etc/loger:/etc/loger:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /var/log/loger-remote:/var/log/loger-remote

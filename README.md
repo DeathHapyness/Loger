@@ -1,6 +1,6 @@
 # Loger
 
-Auditoria leve para servidores Linux. É um binário estático, escrito em Go, que não depende de nada instalado no servidor: não precisa de auditd, eBPF, Python nem de bibliotecas do sistema.
+Auditoria leve para servidores Linux. É um binário estático, escrito em Go, que não depende de nada instalado no servidor: não precisa de auditd, eBPF, Python nem de bibliotecas do sistema. O binário tem cerca de 3 MB e o daemon usa uns 9 MB de RAM.
 
 ## O que registra
 
@@ -38,6 +38,26 @@ sudo systemctl enable --now loger
 
 Sem systemd (Alpine/OpenRC, por exemplo), basta deixar `loger daemon` rodando como root pelo init da distro.
 
+Depois de editar a configuração, `sudo systemctl reload loger` (ou `kill -HUP`) aplica as mudanças sem parar a coleta. Mudanças em `[log]`, `[remote]` ou em quais coletores estão ligados só valem depois de reiniciar, e o próprio Loger avisa isso no log.
+
+## Container
+
+Para rodar em Docker (por exemplo, dentro de um instalador self-hosted):
+
+```sh
+docker compose build
+sudo mkdir -p /etc/loger && docker run --rm ghcr.io/deathhapyness/loger config | sudo tee /etc/loger/loger.toml   # opcional
+docker compose up -d
+docker exec loger /loger show -n 50
+docker exec loger /loger report
+```
+
+O container monta a raiz do host em `/host`, só leitura, e com `LOGER_ROOT=/host` o Loger faz `chroot` nela ao iniciar. Assim ele enxerga o `/etc`, o `/home`, o journal e os processos do host como se estivesse instalado direto nele. A configuração continua em `/etc/loger/loger.toml` e os logs em `/var/log/loger`, ambos no host. O único diretório gravável é `/var/log/loger`.
+
+Ele precisa de `pid: host`, `network_mode: host`, das capabilities listadas no `docker-compose.yml` e de `apparmor:unconfined`, porque o perfil padrão do Docker impede ler `/proc` de processos fora do container. Isso dá ao container acesso de leitura a tudo no host, o mesmo que o Loger instalado direto teria.
+
+O receptor do envio remoto é opcional: `docker compose --profile receiver up -d`.
+
 ## Consultar
 
 ```sh
@@ -50,7 +70,12 @@ sudo loger show -l alert -s 7d            # só alertas da última semana
 sudo loger show -k ssh.auth_fail -g 1.2.3.4
 sudo loger show --json | jq ...           # para scripts
 sudo loger verify                         # confere se alguém mexeu nos logs
+sudo loger report                         # resumo das últimas 24h
+sudo loger report -s 7d -n 20             # resumo da semana, top 20 em cada lista
+sudo loger report --json                  # o mesmo resumo em JSON
 ```
+
+O `report` junta num resumo os logins e de onde vieram, as falhas de login por IP e por usuário tentado, a força bruta, os privilégios negados, as portas novas, as conexões de saída, os arquivos e contas alterados, os eventos do sistema, a integridade do próprio Loger e os comandos mais usados.
 
 ## Envio remoto
 
