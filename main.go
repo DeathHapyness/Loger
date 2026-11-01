@@ -1,13 +1,17 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
 	"github.com/DeathHapyness/loger/internal/config"
 	"github.com/DeathHapyness/loger/internal/daemon"
+	"github.com/DeathHapyness/loger/internal/remote"
+	"github.com/DeathHapyness/loger/internal/report"
 	"github.com/DeathHapyness/loger/internal/show"
 	"github.com/DeathHapyness/loger/internal/store"
+	"golang.org/x/sys/unix"
 )
 
 var version = "0.2.0"
@@ -35,6 +39,12 @@ FILTROS DO show:
   -n N                só os últimos N
   -f, --follow        acompanha em tempo real
       --json          saída JSON (uma linha por evento)
+
+OPÇÕES DO report:
+  -s, --since QUANDO  início do período (padrão: 24h)
+      --until QUANDO
+  -n N                quantos itens em cada ranking (padrão: 10)
+      --json          relatório em JSON
 
 Config padrão: /etc/loger/loger.toml (opcional)
 `
@@ -78,6 +88,15 @@ func main() {
 	if len(os.Args) > 1 {
 		cmd, rest = os.Args[1], os.Args[2:]
 	}
+	// No container a raiz do host vem montada em LOGER_ROOT: o chroot faz /etc, /home, o
+	// journal e o journalctl serem os do host, sem trocar nenhum caminho do código.
+	if root := os.Getenv("LOGER_ROOT"); root != "" && root != "/" {
+		if err := unix.Chroot(root); err != nil {
+			die("chroot %s: %v", root, err)
+		}
+		os.Chdir("/")
+	}
+	welcome()
 	switch cmd {
 	case "daemon":
 		path, explicit := opt(rest, "-c", "--config")
@@ -97,8 +116,30 @@ func main() {
 		if err := show.Show(dir, f); err != nil {
 			die("%v", err)
 		}
+	case "report":
+		dir := logDir(rest, loadConfig(rest))
+		o, err := report.Parse(rest)
+		if err != nil {
+			die("%v", err)
+		}
+		rep, err := report.Build(dir, o)
+		if err != nil {
+			die("%v (rode como root?)", err)
+		}
+		if o.JSON {
+			b, _ := json.MarshalIndent(rep, "", "  ")
+			fmt.Println(string(b))
+		} else {
+			report.Print(os.Stdout, rep)
+		}
 	case "verify":
 		verify(rest)
+	case "receive":
+		if err := remote.Receive(loadConfig(rest)); err != nil {
+			die("%v", err)
+		}
+	case "keygen":
+		fmt.Println(remote.Keygen())
 	case "config":
 		fmt.Print(config.Sample)
 	case "version", "--version", "-V":
