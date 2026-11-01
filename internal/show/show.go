@@ -56,29 +56,13 @@ func (p *printer) print(r *event.Record, line []byte) {
 	fmt.Fprintf(p.w, "%s %s%s%s %-22s %-12s %s%s\n", util.FmtLocal(r.TsMs()), c, lvl, rst, r.Kind, user, r.Msg, ses)
 }
 
-// skipOld tira os arquivos rotacionados cujo último registro é anterior a since.
-func skipOld(files []string, since int64) []string {
-	for len(files) > 1 {
-		line, ok := util.LastLine(files[0])
-		if !ok {
-			break
-		}
-		r, err := event.Parse(line)
-		if err != nil || r.TsMs() >= since {
-			break
-		}
-		files = files[1:]
-	}
-	return files
-}
-
 func Show(dir string, f *Filter) error {
 	files := store.LogFiles(dir)
 	if len(files) == 0 {
 		return fmt.Errorf("%v (rode como root?)", store.NoLogs(dir))
 	}
 	if f.Since > 0 {
-		files = skipOld(files, f.Since)
+		files = store.FilesSince(files, f.Since)
 	}
 	p := newPrinter(f.JSON)
 	defer p.w.Flush()
