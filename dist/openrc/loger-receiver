@@ -1,0 +1,16 @@
+#!/sbin/openrc-run
+# Loger - receptor de logs remotos (OpenRC)
+# Instalar: cp dist/openrc/loger-receiver /etc/init.d/ && rc-update add loger-receiver default
+
+description="Loger - receptor de logs remotos"
+command="/usr/local/bin/loger"
+command_args="receive ${LOGER_OPTS}"
+supervisor="supervise-daemon"
+respawn_delay=2
+respawn_max=0
+error_log="/var/log/loger-receiver.err"
+
+depend() {
+	need net
+	after firewall
+}

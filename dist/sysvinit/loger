@@ -1,0 +1,78 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          loger
+# Required-Start:    $local_fs
+# Required-Stop:     $local_fs
+# X-Start-Before:    ssh sshd
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Loger - auditoria do servidor
+### END INIT INFO
+#
+# SysVinit (Devuan, Slackware, Debian/RHEL antigos).
+# Instalar: cp dist/sysvinit/loger /etc/init.d/ && chmod +x /etc/init.d/loger
+#           update-rc.d loger defaults   (Debian/Devuan)   ou   chkconfig --add loger   (RHEL)
+# O SysVinit não reinicia o processo se ele morrer; o próprio Loger registra
+# loger.unclean_stop na próxima subida.
+
+NAME=loger
+DAEMON=/usr/local/bin/loger
+ARGS="daemon"
+PIDFILE=/run/$NAME.pid
+ERRLOG=/var/log/$NAME-daemon.err
+
+[ -r /etc/default/$NAME ] && . /etc/default/$NAME   # LOGER_OPTS="-c /outro/loger.toml"
+[ -x "$DAEMON" ] || exit 0
+[ -d /run ] || PIDFILE=/var/run/$NAME.pid
+
+running() {
+	[ -s "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null
+}
+
+start() {
+	if running; then
+		echo "$NAME já está rodando"
+		return 0
+	fi
+	printf 'Iniciando %s... ' "$NAME"
+	(
+		echo -900 > /proc/self/oom_score_adj 2>/dev/null
+		exec nice -n -5 "$DAEMON" $ARGS $LOGER_OPTS </dev/null >/dev/null 2>>"$ERRLOG"
+	) &
+	echo $! > "$PIDFILE"
+	sleep 1
+	if running; then echo ok; else echo falhou; rm -f "$PIDFILE"; return 1; fi
+}
+
+stop() {
+	printf 'Parando %s... ' "$NAME"
+	if ! running; then
+		rm -f "$PIDFILE"
+		echo "não estava rodando"
+		return 0
+	fi
+	pid=$(cat "$PIDFILE")
+	kill -TERM "$pid"
+	i=0
+	while kill -0 "$pid" 2>/dev/null && [ $i -lt 10 ]; do
+		sleep 1
+		i=$((i + 1))
+	done
+	if kill -0 "$pid" 2>/dev/null; then echo falhou; return 1; fi
+	rm -f "$PIDFILE"
+	echo ok
+}
+
+case "$1" in
+	start) start ;;
+	stop) stop ;;
+	restart|force-reload) stop && start ;;
+	reload)
+		running || { echo "$NAME não está rodando"; exit 7; }
+		kill -HUP "$(cat "$PIDFILE")"
+		;;
+	status)
+		if running; then echo "$NAME rodando (pid $(cat "$PIDFILE"))"; else echo "$NAME parado"; exit 3; fi
+		;;
+	*) echo "uso: $0 {start|stop|restart|reload|status}" >&2; exit 2 ;;
+esac

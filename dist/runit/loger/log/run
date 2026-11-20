@@ -1,0 +1,3 @@
+#!/bin/sh
+mkdir -p /var/log/loger-daemon
+exec svlogd -tt /var/log/loger-daemon

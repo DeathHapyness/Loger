@@ -1,0 +1,3 @@
+#!/bin/sh
+# Espera 2s antes de o runit subir de novo (igual ao RestartSec do systemd).
+sleep 2

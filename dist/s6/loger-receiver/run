@@ -1,0 +1,4 @@
+#!/bin/sh
+# Loger - receptor de logs remotos (s6-rc)
+exec 2>&1
+exec /usr/local/bin/loger receive

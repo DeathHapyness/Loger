@@ -1,0 +1,11 @@
+# Loger - auditoria do servidor (dinit: Chimera, Artix...)
+# Instalar: cp dist/dinit/loger /etc/dinit.d/ && dinitctl enable loger
+# Recarregar a configuração: dinitctl signal HUP loger (ou kill -HUP)
+type = process
+command = /bin/sh -c "echo -900 > /proc/self/oom_score_adj 2>/dev/null; exec nice -n -5 /usr/local/bin/loger daemon"
+restart = true
+restart-delay = 2
+smooth-recovery = true
+logfile = /var/log/loger-daemon.err
+depends-on = local.target
+before = sshd

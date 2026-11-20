@@ -6,6 +6,7 @@ Before=sshd.service ssh.service
 
 [Service]
 ExecStart=/usr/local/bin/loger daemon
+ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
 RestartSec=2
 Nice=-5

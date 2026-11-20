@@ -1,0 +1,9 @@
+# Loger - receptor de logs remotos (dinit)
+# Instalar: cp dist/dinit/loger-receiver /etc/dinit.d/ && dinitctl enable loger-receiver
+type = process
+command = /usr/local/bin/loger receive
+restart = true
+restart-delay = 2
+smooth-recovery = true
+logfile = /var/log/loger-receiver.err
+depends-on = network.target

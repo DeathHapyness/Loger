@@ -1,0 +1,7 @@
+#!/bin/sh
+# Loger - auditoria do servidor (runit: Void, Artix...)
+# Instalar: cp -r dist/runit/loger /etc/sv/ && ln -s /etc/sv/loger /var/service/
+# Recarregar a configuração: sv hup loger
+exec 2>&1
+echo -900 > /proc/self/oom_score_adj 2>/dev/null
+exec nice -n -5 /usr/local/bin/loger daemon

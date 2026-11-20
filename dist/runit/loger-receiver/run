@@ -1,0 +1,5 @@
+#!/bin/sh
+# Loger - receptor de logs remotos (runit)
+# Instalar: cp -r dist/runit/loger-receiver /etc/sv/ && ln -s /etc/sv/loger-receiver /var/service/
+exec 2>&1
+exec /usr/local/bin/loger receive

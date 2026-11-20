@@ -1,0 +1,8 @@
+#!/bin/sh
+# Loger - auditoria do servidor (s6-rc: Artix, Obarun...)
+# Instalar: cp -r dist/s6/loger /etc/s6/sv/ (ou o diretório de fontes da sua distro),
+#           recompilar a base do s6-rc e adicionar loger ao bundle default.
+# Recarregar a configuração: s6-svc -h /run/service/loger
+exec 2>&1
+echo -900 > /proc/self/oom_score_adj 2>/dev/null
+exec nice -n -5 /usr/local/bin/loger daemon
