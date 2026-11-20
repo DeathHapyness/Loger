@@ -36,7 +36,22 @@ sudo cp dist/loger.service /etc/systemd/system/
 sudo systemctl enable --now loger
 ```
 
-Sem systemd (Alpine/OpenRC, por exemplo), basta deixar `loger daemon` rodando como root pelo init da distro.
+### Outros inicializadores
+
+O `loger daemon` roda em primeiro plano e trata `SIGTERM` (parada limpa) e `SIGHUP` (recarregar), então funciona com qualquer supervisor. Em `dist/` há arquivos prontos para o daemon e para o receptor (`loger-receiver`):
+
+| Init | Distros | Instalar | Recarregar |
+|---|---|---|---|
+| systemd | Debian, Ubuntu, RHEL, Arch… | `cp dist/loger.service /etc/systemd/system/ && systemctl enable --now loger` | `systemctl reload loger` |
+| OpenRC | Alpine, Gentoo, Artix | `cp dist/openrc/loger /etc/init.d/ && rc-update add loger boot && rc-service loger start` | `rc-service loger reload` |
+| SysVinit | Devuan, Slackware, sistemas antigos | `cp dist/sysvinit/loger /etc/init.d/ && update-rc.d loger defaults && /etc/init.d/loger start` (RHEL: `chkconfig --add loger`) | `/etc/init.d/loger reload` |
+| runit | Void, Artix | `cp -r dist/runit/loger /etc/sv/ && ln -s /etc/sv/loger /var/service/` | `sv hup loger` |
+| s6-rc | Artix, Obarun | copie `dist/s6/loger` para o diretório de fontes do s6-rc, recompile a base e adicione ao bundle `default` | `s6-svc -h /run/service/loger` |
+| dinit | Chimera, Artix | `cp dist/dinit/loger /etc/dinit.d/ && dinitctl enable loger` | `dinitctl signal HUP loger` |
+
+Todos reiniciam o Loger se ele morrer, menos o SysVinit, que não supervisiona processos (o `loger.unclean_stop` aparece na subida seguinte). Também ajustam o `oom_score_adj` para -900 e o `nice` para -5, como a unit do systemd. O limite de 64 MB de memória (`MemoryMax`) existe só no systemd. O que o daemon escreve no stderr, que normalmente é nada, vai para `/var/log/loger-daemon.err` (OpenRC, SysVinit, dinit), para o svlogd em `/var/log/loger-daemon/` (runit) ou para o logger catch-all do s6. No OpenRC e no SysVinit, opções extras como `-c /outro/loger.toml` vão em `LOGER_OPTS`, em `/etc/conf.d/loger` ou em `/etc/default/loger`, respectivamente.
+
+Sem systemd, a autenticação é lida do `/var/log/auth.log` ou do `/var/log/secure`. Se o syslog da distro grava em outro arquivo (o Alpine usa `/var/log/messages`), ajuste `files` na seção `[auth]` da configuração.
 
 Depois de editar a configuração, `sudo systemctl reload loger` (ou `kill -HUP`) aplica as mudanças sem parar a coleta. Mudanças em `[log]`, `[remote]` ou em quais coletores estão ligados só valem depois de reiniciar, e o próprio Loger avisa isso no log.
 

@@ -14,7 +14,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-var version = "0.2.0"
+var version = "0.3.0"
 
 const help = `loger — auditoria leve para servidores Linux
 
